@@ -49,9 +49,7 @@ contract CrowdFunding {
     event Fund(uint64 _campaignId, uint256 _amount);
 
     // Requires prior token allowance.
-    function fund(uint64 _campaignId, uint256 _amount) public {
-        Campaign storage campaign = campaigns[_campaignId];
-        require(block.timestamp < campaign.timeline);
+    function fund(uint64 _campaignId, uint256 _amount) duringCampaign(_campaignId) public {
         funded[_campaignId][msg.sender] += _amount;
         token.transferFrom(msg.sender, address(this), _amount);
         emit Fund(_campaignId, _amount);
@@ -59,11 +57,11 @@ contract CrowdFunding {
 
     event Withdraw(uint64 _campaignId, uint256 _amount);
 
-    function withdraw(uint64 _campaignId, uint256 _amount) public {
+    function withdraw(uint64 _campaignId, uint256 _amount) public afterCampaign(_campaignId) {
         Campaign storage campaign = campaigns[_campaignId];
         if (campaign.status == CampaignStatus.NONE) {
             // the first withdrawal follow
-            require(campaign.locked < campaign.goal && block.timestamp >= campaign.timeline);
+            require(campaign.locked < campaign.goal);
             campaign.status = CampaignStatus.DIDNT_MEET_GOAL;
         } else {
             require(campaign.status == CampaignStatus.DIDNT_MEET_GOAL);
@@ -75,9 +73,9 @@ contract CrowdFunding {
 
     event Take(uint64 _campaignId, address _to, uint256 _amount);
 
-    function takeFunds(uint64 _campaignId, address _to, uint256 _amount) public {
+    function takeFunds(uint64 _campaignId, address _to, uint256 _amount) public afterCampaign(_campaignId) {
         Campaign storage campaign = campaigns[_campaignId];
-        require(block.timestamp >= campaign.timeline && msg.sender == campaign.recipient);
+        require(msg.sender == campaign.recipient);
         if (campaign.status == CampaignStatus.NONE) {
             // the first take funds follow
             require(campaign.locked >= campaign.goal);
@@ -88,5 +86,15 @@ contract CrowdFunding {
         campaign.locked -= _amount;
         token.transfer(_to, campaign.locked);
         emit Take(_campaignId, _to, _amount);
+    }
+
+    modifier duringCampaign(uint64 _campaignId) {
+        require(block.timestamp < campaign.timeline);
+        _;
+    }
+
+    modifier afterCampaign(uint64 _campaignId) {
+        require(block.timestamp >= campaign.timeline);
+        _;
     }
 }

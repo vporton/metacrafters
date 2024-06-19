@@ -7,7 +7,7 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract CrowdFunding {
-    IERC20 immutable token;
+    IERC20 token;
     
     uint64 nextCampaignId = 0;
 
@@ -26,9 +26,18 @@ contract CrowdFunding {
     // campaign => (user => funds)
     mapping (uint64 => mapping (address => uint256)) funded;
 
+    bool initialized; // initially false
+
     // Enhancement proposal beyond requested specification: Make token per-campaign.
-    constructor(IERC20 _token) {
+    // No constructor for upgradeable contract
+    // constructor(IERC20 _token) {
+    //     token = _token;
+    // }
+
+    function init(IERC20 _token) public {
+        require(!initialized, "already initialized");
         token = _token;
+        initialized = true;
     }
 
     event CreateCampaign(address _recipient, uint256 _goal, uint64 _timeline);

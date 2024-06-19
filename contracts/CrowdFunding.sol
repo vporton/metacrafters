@@ -7,7 +7,7 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract CrowdFunding {
-    IERC20 token;
+    IERC20 immutable token;
     
     uint64 nextCampaignId = 0;
 
@@ -51,8 +51,8 @@ contract CrowdFunding {
     // Requires prior token allowance.
     function fund(uint64 _campaignId, uint256 _amount) duringCampaign(_campaignId) public {
         funded[_campaignId][msg.sender] += _amount;
-        token.transferFrom(msg.sender, address(this), _amount);
         emit Fund(_campaignId, _amount);
+        token.transferFrom(msg.sender, address(this), _amount); // I don't check return value, because our token reverts
     }
 
     event Withdraw(uint64 _campaignId, uint256 _amount);
@@ -61,40 +61,42 @@ contract CrowdFunding {
         Campaign storage campaign = campaigns[_campaignId];
         if (campaign.status == CampaignStatus.NONE) {
             // the first withdrawal follow
-            require(campaign.locked < campaign.goal);
+            require(campaign.locked < campaign.goal, "cannot withdraw: campaign fully funded");
             campaign.status = CampaignStatus.DIDNT_MEET_GOAL;
         } else {
-            require(campaign.status == CampaignStatus.DIDNT_MEET_GOAL);
+            require(campaign.status == CampaignStatus.DIDNT_MEET_GOAL, "cannot withdraw: campaign fully funded");
         }
         campaign.locked -= _amount;
-        token.transfer(msg.sender, _amount);
         emit Withdraw(_campaignId, _amount);
+        token.transfer(msg.sender, _amount); // I don't check return value, because our token reverts
     }
 
     event Take(uint64 _campaignId, address _to, uint256 _amount);
 
     function takeFunds(uint64 _campaignId, address _to, uint256 _amount) public afterCampaign(_campaignId) {
         Campaign storage campaign = campaigns[_campaignId];
-        require(msg.sender == campaign.recipient);
+        require(msg.sender == campaign.recipient, "you aren't the campaign recipient");
         if (campaign.status == CampaignStatus.NONE) {
             // the first take funds follow
-            require(campaign.locked >= campaign.goal);
+            require(campaign.locked >= campaign.goal, "campaign isn't fully funded");
             campaign.status = CampaignStatus.MET_GOAL;
         } else {
-            require(campaign.status == CampaignStatus.MET_GOAL);
+            require(campaign.status == CampaignStatus.MET_GOAL, "campaign isn't fully funded");
         }
         campaign.locked -= _amount;
-        token.transfer(_to, campaign.locked);
         emit Take(_campaignId, _to, _amount);
+        token.transfer(_to, campaign.locked); // I don't check return value, because our token reverts
     }
 
     modifier duringCampaign(uint64 _campaignId) {
-        require(block.timestamp < campaign.timeline);
+        Campaign storage campaign = campaigns[_campaignId];
+        require(block.timestamp < campaign.timeline, "not during campaign");
         _;
     }
 
     modifier afterCampaign(uint64 _campaignId) {
-        require(block.timestamp >= campaign.timeline);
+        Campaign storage campaign = campaigns[_campaignId];
+        require(block.timestamp >= campaign.timeline, "campaign didn't end yet");
         _;
     }
 }

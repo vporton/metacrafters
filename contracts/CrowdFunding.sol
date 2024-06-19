@@ -31,6 +31,8 @@ contract CrowdFunding {
         token = _token;
     }
 
+    event CreateCampaign(address _recipient, uint256 _goal, uint64 _timeline);
+
     function createCampaign(address _recipient, uint256 _goal, uint64 _timeline) public returns (uint64 campaignId) {
         Campaign memory campaign = Campaign({
             recipient: _recipient,
@@ -41,7 +43,10 @@ contract CrowdFunding {
         });
         campaignId = nextCampaignId++;
         campaigns[campaignId] = campaign;
+        emit CreateCampaign(_recipient, _goal, _timeline);
     }
+
+    event Fund(uint64 _campaignId, uint256 _amount);
 
     // Requires prior token allowance.
     function fund(uint64 _campaignId, uint256 _amount) public {
@@ -49,7 +54,10 @@ contract CrowdFunding {
         require(block.timestamp < campaign.timeline);
         funded[_campaignId][msg.sender] += _amount;
         token.transferFrom(msg.sender, address(this), _amount);
+        emit Fund(_campaignId, _amount);
     }
+
+    event Withdraw(uint64 _campaignId, uint256 _amount);
 
     function withdraw(uint64 _campaignId, uint256 _amount) public {
         Campaign storage campaign = campaigns[_campaignId];
@@ -62,7 +70,10 @@ contract CrowdFunding {
         }
         campaign.locked -= _amount;
         token.transfer(msg.sender, _amount);
+        emit Withdraw(_campaignId, _amount);
     }
+
+    event Take(uint64 _campaignId, address _to, uint256 _amount);
 
     function takeFunds(uint64 _campaignId, address _to, uint256 _amount) public {
         Campaign storage campaign = campaigns[_campaignId];
@@ -76,5 +87,6 @@ contract CrowdFunding {
         }
         campaign.locked -= _amount;
         token.transfer(_to, campaign.locked);
+        emit Take(_campaignId, _to, _amount);
     }
 }
